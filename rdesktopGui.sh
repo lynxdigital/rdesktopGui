@@ -1,23 +1,37 @@
-#!/bin/bash
+#!/usr/bin/env bash
 ## RDesktop GUI Script
 ## Script To Execute RDesktop In A GUI Environment
+## Geoffrey Harrison <geoffrey.harrison@lynxdigital.com.au>
 
-# Define Static Dir Variables
+## displayError Function - Displays Error To The User
+function displayError {
+	if [ -f "/usr/bin/zenity" ]
+	then
+		zenity --error --text="$1"
+	else
+		echo
+		echo " ERROR: $1"
+		echo
+	fi
+}
+
+## MAIN SCRIPT
+
+# Define Directory and Binary Variables
 scriptDir=$(dirname "$0")
 credentialsDir="${scriptDir}/credentials"
-functionDir="${scriptDir}/functions"
 workingDir="/tmp"
-rdesktopBin="/usr/bin/rdesktop"
+rdesktopBin=$(whereis -b rdesktop | awk '{print $2}')
+zenityBin=$(whereis -b zenity | awk '{print $2}')
 
-# Load Functions
-. ${functionDir}/setDefault.sh
-. ${functionDir}/displayError.sh
+# Load Script Config Override File If Exists
+if [ -f "${scriptDir}/override.conf" ] ; then . "${scriptDir}/override.conf" ; fi
 
 # Check If Server Config File Was Provided On Command Line
 if [ "$1" == "" ]
 then
 	# Prompt User To Provide File Of None
-	serverConfig=$(zenity --file-selection --file-filter="Server Configs | *.rdp")
+	serverConfig=$(${zenityBin} --file-selection --file-filter="Server Configs | *.rdp")
 	guiResult=$?
 	if [ $guiResult -eq 1 ]
 	then
@@ -30,12 +44,12 @@ else
 fi
 
 # Load Global Defaults If It Exists
-if [ -f "${scriptDir}/defaults.sh" ]
+if [ -f "${scriptDir}/defaults.conf" ]
 then
-	. "${scriptDir}/defaults.sh"
+	. "${scriptDir}/defaults.conf"
 else
 	# Write If It Doesn't
-	touch "${scriptDir}/defaults.sh"
+	touch "${scriptDir}/defaults.conf"
 fi
 
 # Check Server Config File Exists
@@ -43,9 +57,9 @@ if [ -f "${serverConfig}" ]
 then
 	# Load Any Group Defaults If They Exist
 	configDir=$(dirname ${serverConfig})
-	if [ -f "${configDir}/defaults.sh" ]
+	if [ -f "${configDir}/defaults.conf" ]
 	then
-		. "${configDir}/defaults.sh"
+		. "${configDir}/defaults.conf"
 	fi
 	
 	# Load Config Variables
@@ -57,7 +71,7 @@ then
 		# Set Credentials From Variables
 		if [ "${username}" == "" ]
 		then
-			username=$(zenity --entry --text="Please Enter Username")
+			username=$(${zenityBin} --entry --text="Please Enter Username")
 			$guiResult=$?
 			if [ $guiResult -neq 0 ]
 			then
@@ -187,7 +201,7 @@ then
 	# Prompt User If No Password
 	if [ ${password} == "" ]
 	then
-		password=$(zenity --entry --text="Please Enter Password" --hide-text)
+		password=$(${zenityBin} --entry --text="Please Enter Password" --hide-text)
 		$guiResult=$?
 		if [ $guiResult -neq 0 ]
 		then
