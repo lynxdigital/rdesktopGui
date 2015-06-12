@@ -2,67 +2,207 @@
 ## RDesktop GUI Script
 ## Script To Execute RDesktop In A GUI Environment
 
-# Function set_default - Returns Passed Value Or Pre-Set Default
-set_default {
-	if [ "$1" == "" ]
-	then
-		echo $2
-	else
-		echo $1
-	fi
-}
+# Define Static Dir Variables
+scriptDir=$(dirname "$0")
+credentialsDir="${scriptDir}/credentials"
+functionDir="${scriptDir}/functions"
+workingDir="/tmp"
+rdesktopBin="/usr/bin/rdesktop"
 
-# Function display_error - Displays An Error
-display_error {
-	echo
-	echo " ERROR: $1"
-	echo
-}
+# Load Functions
+. ${functionDir}/setDefault.sh
+. ${functionDir}/displayError.sh
 
-# No Config Means No Run
+# Check If Server Config File Was Provided On Command Line
 if [ "$1" == "" ]
 then
-	exit 1
+	# Prompt User To Provide File Of None
+	serverConfig=$(zenity --file-selection --file-filter="Server Configs | *.rdp")
+	guiResult=$?
+	if [ $guiResult -eq 1 ]
+	then
+		displayError "No Server Config File Selected"
+		exit 1
+	fi
 else
+	# Server Config File Provided
 	serverConfig=$1
 fi
 
-# Define Static Variables
-scriptPath="/home/geoffrey/Projects/rdesktopGui"
-credentialsPath="${scriptPath}/credentials"
-
-# Check Server Config File
-if [ -f ${serverConfig} ]
+# Load Global Defaults If It Exists
+if [ -f "${scriptDir}/defaults.sh" ]
 then
+	. "${scriptDir}/defaults.sh"
+else
+	# Write If It Doesn't
+	touch "${scriptDir}/defaults.sh"
+fi
+
+# Check Server Config File Exists
+if [ -f "${serverConfig}" ]
+then
+	# Load Any Group Defaults If They Exist
+	configDir=$(dirname ${serverConfig})
+	if [ -f "${configDir}/defaults.sh" ]
+	then
+		. "${configDir}/defaults.sh"
+	fi
+	
 	# Load Config Variables
 	. ${serverConfig}
 	
-	# Load Credentials From Config Or File
+	# Load Credentials From Credentials File or Config
 	if [ "${credentials}" == "" ]
 	then
+		# Set Credentials From Variables
 		if [ "${username}" == "" ]
 		then
-			display_error "No Credential File Defined And No Username"
-			exit 1
-		else
-			password=$(set_default "${password}" "")
-			domain=$(set_default "${domain}" "")
+			username=$(zenity --entry --text="Please Enter Username")
+			$guiResult=$?
+			if [ $guiResult -neq 0 ]
+			then
+				displayError "No Username Provided"
+				exit 1
+			fi
 		fi
 	else
 		# Load Credentials From File
-		if [ -f "${credentialsPath}/${credentials}.credentials" ]
+		if [ -f "${credentialsDir}/${credentials}.credentials" ]
 		then
-			. ${credentialsPath}/${credentials}.credentials
+			. ${credentialsDir}/${credentials}.credentials
 		else
-			display_error "Credentials File Not Found"
+			displayError "Credentials File Not Found"
 			exit 1
 		fi
 	fi
 	
-	# WORKING####
+	# Check Hostname or IPAddress
+	if [ ${hostname} != "" ]
+	then
+		rdpHost="${hostname}"
+	else
+		if [ ${ipAddress} != "" ]
+		then
+			rdpHost="${ipAddress}"
+		else
+			displayError "No Hostname Or IP Address Specified"
+			exit 1
+		fi
+	fi
 
+	## Start Building Command Line For RDesktop
+	cmdLine="${rdesktopBin} -c ${workingDir}"
+	
+	# Screen Resolution
+	if [ "${resolution}" == "full" ]
+	then
+		cmdLine="${cmdLine} -f"
+	else
+		cmdLine="${cmdLine} -g '$resolution'"
+	fi
+	
+	# RDP Version
+	if [ "${rdpVersion}" == "5" ] || [ "${rdpVersion}" == "4" ]
+	then
+		cmdLine="${cmdLine} -${rdpVersion}"
+	else
+		displayError "Invalid RDP Version Defined"
+		exit 1
+	fi
+	
+	# Compression
+	if [ "${compression}" == "true" ]
+	then
+		cmdLine="${cmdLine} -z"
+	fi
+	
+	# Colour Depth
+	if [ "${colorDepth}" != "" ]
+	then
+		cmdLine="${cmdLine} -a ${colorDepth}"
+	fi
+	
+	# Console
+	if [ "${console}" == "true" ]
+	then
+		cmdLine="${cmdLine} -0"
+	fi
+	
+	# Window Title
+	if [ "${title}" != "" ]
+	then
+		cmdLine="${cmdLine} -T '${title}'"
+	else
+		cmdLine="${cmdLine} -T '${rdpHost}'"
+	fi
+	
+	# Quality Level (Modem, Boradband, LAN)
+	if [ $quality != "" ]
+	then
+		if [ $quality == "modem" ] ; then cmdLine="${cmdLine} -x m" ; fi
+		if [ $quality == "broadband" ] ; then cmdLine="${cmdLine} -x b" ; fi
+		if [ $quality == "lan" ] ; then cmdLine="${cmdLine} -x l" ; fi
+	fi
+	
+	# Sound Playback
+	if [ "${sound}" == "off" ] || [ "${sound}" == "local" ] || [ "${sound}" == "remote" ]
+	then
+		cmdLine="${cmdLine} -r sound:${sound}"
+	fi
+	
+	# Clipboard
+	if [ "${clipboard}" == "off" ] || [ "${clipboard}" == "primary" ] || [ "${clipboard}" == "clipboard" ]
+	then
+		if [ "${clipboard}" == "off" ] ; then cmdLine="${cmdLine} -r clipboard:off" ; fi
+		if [ "${clipboard}" == "primary" ] ; then cmdLine="${cmdLine} -r clipboard:PRIMARYCLIPBOARD" ; fi
+		if [ "${clipboard}" == "clipboard" ] ; then cmdLine="${cmdLine} -r clipboard:CLIPBOARD" ; fi
+	fi
+	
+	# Disk Sharing
+	if [ "${disks}" != "" ]
+	then
+		# Check and Set ClientName For System
+		if [ "${clientname}" == "" ]
+		then 
+			# Set To Username If No Clientname Provided
+			cmdLine="${cmdLine} -r clientname:${USER}"
+		else
+			# Clientname Provided
+			cmdLine="${cmdLine} -r clientname:${clientname}"	
+		fi
+		
+		# Set Disks
+		for disk in ${disks}
+		do
+			cmdLine="${cmdLine} -r disk:${disk}"
+		done
+	fi
+	
+	# Set A User Domain
+	if [ "${domain}" != "" ]
+	then
+		cmdLine="${cmdLine} -d '${domain}'"
+	fi
+	
+	# Prompt User If No Password
+	if [ ${password} == "" ]
+	then
+		password=$(zenity --entry --text="Please Enter Password" --hide-text)
+		$guiResult=$?
+		if [ $guiResult -neq 0 ]
+		then
+			password=""
+		fi
+	fi
+	
+	# Complete Command Line
+	cmdLine="${cmdLine} -u '${username}' -p '${password}' '${rdpHost}'"
+	
+	## Execute Command
+	eval "${cmdLine}"
+	
 else
-	display_error "Server Config File Not Found"
+	displayError "Server Config File Not Found"
 	exit 1
 fi
 
