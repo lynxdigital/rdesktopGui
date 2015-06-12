@@ -33,4 +33,4 @@ Extending The Solution
 -
 The script was written with the purpose of associating an extension to the server config files (e.g. *.rdp) within the file manager under the Windows Manager (e.g. nemo/nautalus). This allows for the creation of a folder strcture with RDP connections that can be managed and groupped in a similar fashion to Microsofts Remote Desktop Connection Manager in Windows.
 
-This allows for a full GUIish interface with little/no GUI that everybody should be able to use once the config files are configured.
+This allows for a full GUIish interface with little/no GUI that everybody should be able to use once the config files are configured. An association folder contains an example of a mime type and a desktop icon which can could be used to control the script. Currently, the mime type is set to use the remmina icon for the mime icon graphic.

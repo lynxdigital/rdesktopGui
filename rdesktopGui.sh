@@ -27,6 +27,8 @@ zenityBin=$(whereis -b zenity | awk '{print $2}')
 # Load Script Config Override File If Exists
 if [ -f "${scriptDir}/override.conf" ] ; then . "${scriptDir}/override.conf" ; fi
 
+echo "$1" > /tmp/out.txt
+
 # Check If Server Config File Was Provided On Command Line
 if [ "$1" == "" ]
 then

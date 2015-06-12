@@ -1,0 +1,8 @@
+[Desktop Entry]
+Comment=RDesktop GUI
+Terminal=false
+Name=RDesktop GUI
+Exec=/home/geoffrey/Projects/rdesktopGui/rdesktopGui.sh
+Type=Application
+Icon=remmina
+Name[en_AU]=RDesktopGUI
